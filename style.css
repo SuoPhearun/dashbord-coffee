@@ -15,4 +15,8 @@ a{
     position: fixed;
     opacity: 1;
     background-color: lightgray;
+    transform: translateX(-50%);
+    list-style: none;
+    list-style-type: none;
+    
 }

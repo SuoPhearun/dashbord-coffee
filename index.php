@@ -15,42 +15,62 @@
         overflow-x: hidden;
     }
     .bar{
-        background-image: linear-gradient(95deg, #4f772d,#90a955);
+        /* background-image: linear-gradient(95deg, #4f772d,#90a955); */
+        background-color: #00A296;
+    }
+    .men{
+        padding: 0;
+        margin: 0;
+        width: 100%; 
     }
     .menu li{
         background-color:transparent;
         border:none;
-        transition: 0.2s linear;
+        width: 100%;  
+        transition: 0.3s linear;
         font-size:1.2rem;
-        padding-left: 15px;
+        list-style-type: none;
+        padding: 5px 10px;
     }
     .menu li a{
-        text-decoration: none;
-        color:#e8e8e4;
+    display: flex;              
+    align-items: center;
+    gap: 10px;                  
+    width: 100%;
+    padding: 10px 15px;
+    color: #e8e8e4;
+    text-decoration: none;
+    transition: 0.2s ease;
+    border-radius: 6px;
     }
-    .menu li:hover{
-        background-color:#6a994e;
-        border-radius: 5px;
-        color:#3E5C14;
+    .menu li:hover a {
+    transform: translateX(15px);
+}
+    .menu li:hover {
+        background-color:rgba(0,0,0,0.2);
+        width: 100%;
+        transform: translateX(11px);
     }
     img{
-        width: 80px;
+        width: 100px;
         position: relative;
-        bottom: 5px;
-        left: 15px;
+        left: 50%;
+        bottom: 45px;
+        transform: translateX(-50%);
+        border-radius: 50%;
     }
     .logo{
         display:flex;
-        border-bottom:1px solid #fff;
-        align-items: center;
+        width: 100%;
         position: relative;
-        top:0;
+        top:20px
     }
     .text-head{
         position: absolute;
-        bottom:10px;
-        left: 85px;
-        color:#3E5C14;
+        bottom:45px;
+        left: 40px;   
+        color:#e8e8e4;
+        font-size:18px;
     }
     .text-dashoard{
         color:#3E5C14;
@@ -59,7 +79,7 @@
         position: absolute;
         left:50px;
         font-size:1.2rem;
-        bottom: 60px;
+        bottom: 30px;
         cursor: pointer;
     }
     .revenue-top,.revenue-center{
@@ -89,17 +109,19 @@
 <body>
     <div class="contaner">
         <div class="row">
-            <div class="col-2 position-fixed bg-light vh-100 p-3 bar">
-                <div class="logo">
-                <img src="teas.png" alt="">
-                <h4 class="text-center text-head">Tea SHOP</h4>
+            <div class="col-2 position-fixed vh-100  bar">
+                <div class="logo py-5">
+                    <img src="https://i.pinimg.com/736x/e5/2a/e3/e52ae301a1162863df9a68c532dd3e2e.jpg" alt="">
+                    <h1 class=" text-head"> Admine Dashboard </h1>
                 </div>
-                <ul class="list-group menu  mx-3 my-3">
-                    <li class="list-group-item"><a class="text-center " href="index.php"><i class="fa-solid fa-house"></i> Dashboard</a></li>
-                    <li class="list-group-item"><a class="text-center " href="order.php"> <i class="fa-solid fa-cart-shopping"></i> Oders</a></li>
-                    <li class="list-group-item"><a class="text-center " href="product.php"><i class="fa-solid fa-box"></i> Products</a></li>
-                    <li class="list-group-item"><a class="text-center " href="customer.php"><i class="fa-solid fa-users"></i> Customer</a></li>
-                    <li class="list-group-item"><a class="text-center " href="index.php"><i class="fa-solid fa-list"></i> Report</a></li>
+                <ul class="menu list-group">
+                    <li class="li-list"><a class=" " href="index.php"><i class="fa-solid fa-house"></i>Main Dashboard</a></li>
+                    <li class="li-list"><a class=" " href="product.php"><i class="fa-solid fa-box"></i> Menage Menu</a></li>
+                    <li class="li-list"><a class=" " href="order.php"> <i class="fa-solid fa-cart-shopping"></i> Oders</a></li>
+                    <li class="li-list"><a class=" " href="customer.php"><i class="fa-solid fa-users"></i> Customer</a></li>
+                    <li class="li-list"><a class=" " href="customer.php"><i class="fa-solid fa-chart-area"></i> Analytics</a></li>
+                    <li class="li-list"><a class=" " href="index.php"><i class="fa-solid fa-list"></i> Report</a></li>
+                    <li class="li-list"><a class=" " href="index.php"><i class="fa-solid fa-gear"></i> setting</a></li>
                 </ul>
                 <div class="logout text-white">
                     <i class="fa-solid fa-arrow-right-from-bracket"></i>
