@@ -1,3 +1,127 @@
+<?php
+// ========== CONNECTION ==========
+include "connection.php"; // $conn គឺជា PDO object
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// ========== JSON RESPONSE FOR STATS (MUST BE BEFORE ANY HTML OUTPUT) ==========
+if (isset($_GET['fetch_stats']) && $_GET['fetch_stats'] == '1') {
+    header('Content-Type: application/json');
+    
+    try {
+        $stats = [
+            'success' => true,
+            'total_products' => 0,
+            'coffee_total' => 0,
+            'hot_coffee' => 0,
+            'cold_coffee' => 0,
+            'matcha_total' => 0,
+            'hot_matcha' => 0,
+            'cold_matcha' => 0,
+            'tea_total' => 0,
+            'hot_tea' => 0,
+            'cold_tea' => 0
+        ];
+        
+        // Total products (skip null rows)
+        $totalQuery = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE name IS NOT NULL AND name != ''");
+        $totalRow = $totalQuery->fetch(PDO::FETCH_ASSOC);
+        $stats['total_products'] = (int)$totalRow['total'];
+        
+        // === COFFEE ===
+        $coffeeTotal = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Coffee' AND name IS NOT NULL");
+        $stats['coffee_total'] = (int)$coffeeTotal->fetch(PDO::FETCH_ASSOC)['total'];
+        
+        $hotCoffee = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Coffee' AND type = 'Hot' AND name IS NOT NULL");
+        $stats['hot_coffee'] = (int)$hotCoffee->fetch(PDO::FETCH_ASSOC)['total'];
+        
+        $coldCoffee = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Coffee' AND (type = 'cold' OR type = 'Cold') AND name IS NOT NULL");
+        $stats['cold_coffee'] = (int)$coldCoffee->fetch(PDO::FETCH_ASSOC)['total'];
+        
+        // === MATCHA ===
+        $matchaTotal = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Matcha' AND name IS NOT NULL");
+        $stats['matcha_total'] = (int)$matchaTotal->fetch(PDO::FETCH_ASSOC)['total'];
+        
+        $hotMatcha = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Matcha' AND type = 'Hot' AND name IS NOT NULL");
+        $stats['hot_matcha'] = (int)$hotMatcha->fetch(PDO::FETCH_ASSOC)['total'];
+        
+        $coldMatcha = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Matcha' AND (type = 'cold' OR type = 'Cold') AND name IS NOT NULL");
+        $stats['cold_matcha'] = (int)$coldMatcha->fetch(PDO::FETCH_ASSOC)['total'];
+        
+        // === TEA ===
+        $teaTotal = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Tea' AND name IS NOT NULL");
+        $stats['tea_total'] = (int)$teaTotal->fetch(PDO::FETCH_ASSOC)['total'];
+        
+        $hotTea = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Tea' AND type = 'Hot' AND name IS NOT NULL");
+        $stats['hot_tea'] = (int)$hotTea->fetch(PDO::FETCH_ASSOC)['total'];
+        
+        $coldTea = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Tea' AND (type = 'cold' OR type = 'Cold') AND name IS NOT NULL");
+        $stats['cold_tea'] = (int)$coldTea->fetch(PDO::FETCH_ASSOC)['total'];
+        
+        echo json_encode($stats);
+        
+    } catch (PDOException $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// ========== SAVE PRODUCT ==========
+if (isset($_POST['save'])) {
+    $productName = $_POST['p-name'];
+    $type = $_POST['type'];
+    $category = $_POST['category'];
+    $price = $_POST['price'];
+    $create_by = $_POST['create_by'];
+    $create_at = $_POST['create_at'];
+    $status = $_POST['status'];
+    $image = $_POST['image'];
+    
+    // Note: Your table uses `created_by` not `create_by`
+    $sql = "INSERT INTO tbl_products (name, type, category, price, created_by, create_at, status, image)
+            VALUES (:name, :type, :category, :price, :create_by, :create_at, :status, :image)";
+    
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(':name', $productName);
+    $stmt->bindParam(':type', $type);
+    $stmt->bindParam(':category', $category);
+    $stmt->bindParam(':price', $price);
+    $stmt->bindParam(':create_by', $create_by);
+    $stmt->bindParam(':create_at', $create_at);
+    $stmt->bindParam(':status', $status);
+    $stmt->bindParam(':image', $image);
+    
+    if ($stmt->execute()) {
+        header("Location: product.php");
+        exit();
+    } else {
+        echo "Error: " . implode(", ", $stmt->errorInfo());
+    }
+}
+
+// ========== FETCH PRODUCTS ==========
+$searchKeyword = '';
+if (isset($_GET['search'])) {
+    $searchKeyword = trim($_GET['search']);
+}
+
+$sqls = "SELECT * FROM tbl_products WHERE name IS NOT NULL AND name != ''";
+if (!empty($searchKeyword)) {
+    $searchKeyword = "%$searchKeyword%";
+    $sqls .= " AND (name LIKE :search OR category LIKE :search OR type LIKE :search)";
+}
+$sqls .= " ORDER BY id DESC";
+
+$stmt = $conn->prepare($sqls);
+if (!empty($searchKeyword)) {
+    $stmt->bindParam(':search', $searchKeyword);
+}
+$stmt->execute();
+$res = $stmt;
+$totalProducts = $res->rowCount();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -427,100 +551,6 @@
             setInterval(fetchDashboardStats, 30000);
         });
     </script>
-<?php
-// ========== DYNAMIC BACKEND STATS FOR JSON RESPONSE ==========
-if (isset($_GET['fetch_stats']) && $_GET['fetch_stats'] == '1') {
-    header('Content-Type: application/json');
-    
-    include "connection.php";
-    
-    $stats = [
-        'success' => true,
-        'total_products' => 0,
-        'coffee_total' => 0,
-        'hot_coffee' => 0,
-        'cold_coffee' => 0,
-        'matcha_total' => 0,
-        'hot_matcha' => 0,
-        'cold_matcha' => 0,
-        'tea_total' => 0,
-        'hot_tea' => 0,
-        'cold_tea' => 0
-    ];
-    
-    try {
-        // Total products count - កែត្រូវហើយ
-        $totalQuery = $conn->query("SELECT COUNT(*) as total FROM tbl_products");
-        if ($totalQuery) {
-            $totalRow = $totalQuery->fetch_assoc();
-            $stats['total_products'] = (int)$totalRow['total'];
-        }
-        
-        // Coffee total & breakdown
-        $coffeeTotalQuery = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Coffee'");
-        if ($coffeeTotalQuery) {
-            $coffeeRow = $coffeeTotalQuery->fetch_assoc();
-            $stats['coffee_total'] = (int)$coffeeRow['total'];
-        }
-        
-        $hotCoffeeQ = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Coffee' AND type = 'Hot'");
-        if ($hotCoffeeQ) {
-            $hotCoffeeRow = $hotCoffeeQ->fetch_assoc();
-            $stats['hot_coffee'] = (int)$hotCoffeeRow['total'];
-        }
-        
-        $coldCoffeeQ = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Coffee' AND type = 'Cold'");
-        if ($coldCoffeeQ) {
-            $coldCoffeeRow = $coldCoffeeQ->fetch_assoc();
-            $stats['cold_coffee'] = (int)$coldCoffeeRow['total'];
-        }
-        
-        // Matcha stats
-        $matchaTotalQ = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Matcha'");
-        if ($matchaTotalQ) {
-            $matchaRow = $matchaTotalQ->fetch_assoc();
-            $stats['matcha_total'] = (int)$matchaRow['total'];
-        }
-        
-        $hotMatchaQ = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Matcha' AND type = 'Hot'");
-        if ($hotMatchaQ) {
-            $hotMatchaRow = $hotMatchaQ->fetch_assoc();
-            $stats['hot_matcha'] = (int)$hotMatchaRow['total'];
-        }
-        
-        $coldMatchaQ = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Matcha' AND type = 'Cold'");
-        if ($coldMatchaQ) {
-            $coldMatchaRow = $coldMatchaQ->fetch_assoc();
-            $stats['cold_matcha'] = (int)$coldMatchaRow['total'];
-        }
-        
-        // Tea stats
-        $teaTotalQ = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Tea'");
-        if ($teaTotalQ) {
-            $teaRow = $teaTotalQ->fetch_assoc();
-            $stats['tea_total'] = (int)$teaRow['total'];
-        }
-        
-        $hotTeaQ = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Tea' AND type = 'Hot'");
-        if ($hotTeaQ) {
-            $hotTeaRow = $hotTeaQ->fetch_assoc();
-            $stats['hot_tea'] = (int)$hotTeaRow['total'];
-        }
-        
-        $coldTeaQ = $conn->query("SELECT COUNT(*) as total FROM tbl_products WHERE category = 'Tea' AND type = 'Cold'");
-        if ($coldTeaQ) {
-            $coldTeaRow = $coldTeaQ->fetch_assoc();
-            $stats['cold_tea'] = (int)$coldTeaRow['total'];
-        }
-        
-    } catch (Exception $e) {
-        $stats['success'] = false;
-        $stats['error'] = $e->getMessage();
-    }
-    
-    echo json_encode($stats);
-    exit;
-}
-?>
+ 
 </body>
 </html>
