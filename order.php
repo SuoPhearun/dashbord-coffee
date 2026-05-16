@@ -1,111 +1,81 @@
+
 <?php
-      // order.php
-      require_once 'connection.php';
-      
-      // ឆែកមើលការភ្ជាប់ Database
-      if (!isset($pdo)) {
-          die("Error: មិនទាន់មានការភ្ជាប់ Database ទេ។ សូមពិនិត្យ connection.php");
-      }
-      
-      // --- ១. ការគ្រប់គ្រងទិន្នន័យ (Create / Edit / Delete) ---
-      if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-          if ($_POST['action'] === 'create') {
-              $c_name = trim($_POST['c_name']);
-              $item = trim($_POST['item']);
-              $total_amount = floatval($_POST['total_amount']);
-              $status = $_POST['status'];
-              
-              $stmt = $pdo->prepare("INSERT INTO tbl_order (c_name, item, total_amount, status) VALUES (?, ?, ?, ?)");
-              $stmt->execute([$c_name, $item, $total_amount, $status]);
-              header("Location: order.php?msg=created");
-              exit;
-          }
-          
-          if ($_POST['action'] === 'edit') {
-              $id = intval($_POST['id']);
-              $c_name = trim($_POST['c_name']);
-              $item = trim($_POST['item']);
-              $total_amount = floatval($_POST['total_amount']);
-              $status = $_POST['status'];
-              
-              $stmt = $pdo->prepare("UPDATE tbl_order SET c_name=?, item=?, total_amount=?, status=? WHERE id=?");
-              $stmt->execute([$c_name, $item, $total_amount, $status, $id]);
-              header("Location: order.php?msg=updated");
-              exit;
-          }
-      
-          if ($_POST['action'] === 'delete') {
-              $id = intval($_POST['id']);
-              $stmt = $pdo->prepare("DELETE FROM tbl_order WHERE id = ?");
-              $stmt->execute([$id]);
-              header("Location: order.php?msg=deleted");
-              exit;
-          }
-      }
-      
-      // --- ២. ការទាញយកទិន្នន័យសម្រាប់បង្ហាញ និង Pagination ---
-      
-      // កំណត់តម្លៃ Filter និង Search
-      $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
-      $search = isset($_GET['search']) ? trim($_GET['search']) : '';
-      $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-      $per_page = 10;
-      $offset = ($page - 1) * $per_page;
-      
-      // បង្កើត SQL សម្រាប់ Filter
-      $where_clauses = ["1=1"];
-      $params = [];
-      
-      if ($status_filter !== 'all') {
-          $where_clauses[] = "status = ?";
-          $params[] = $status_filter;
-      }
-      if (!empty($search)) {
-          $where_clauses[] = "(c_name LIKE ? OR item LIKE ?)";
-          $params[] = "%$search%";
-          $params[] = "%$search%";
-      }
-      
-      $where_sql = implode(" AND ", $where_clauses);
-      
-      // រាប់ចំនួនសរុបដើម្បីធ្វើ Pagination
-      $count_stmt = $pdo->prepare("SELECT COUNT(*) FROM tbl_order WHERE $where_sql");
-      $count_stmt->execute($params);
-      $total_records = $count_stmt->fetchColumn();
-      $total_pages = ceil($total_records / $per_page);
-      
-      // ទាញទិន្នន័យជាក់ស្តែង
-      $data_sql = "SELECT * FROM tbl_order WHERE $where_sql ORDER BY id DESC LIMIT $per_page OFFSET $offset";
-      $data_stmt = $pdo->prepare($data_sql);
-      $data_stmt->execute($params);
-      $paginated_orders = $data_stmt->fetchAll();
-      
-      // ទាញ Statistics សម្រាប់ Card ខាងលើ
-      $total_orders = $pdo->query("SELECT COUNT(*) FROM tbl_order")->fetchColumn();
-      $total_revenue = $pdo->query("SELECT COALESCE(SUM(total_amount), 0) FROM tbl_order")->fetchColumn();
-      $pending_count = $pdo->query("SELECT COUNT(*) FROM tbl_order WHERE status IN ('pending', 'processing')")->fetchColumn();
-      $completed_count = $pdo->query("SELECT COUNT(*) FROM tbl_order WHERE status = 'completed'")->fetchColumn();
-      
-      // ឆែកមើលទិន្នន័យសម្រាប់ Edit Modal
-      $edit_order = null;
-      if (isset($_GET['edit'])) {
-          $stmt = $pdo->prepare("SELECT * FROM tbl_order WHERE id = ?");
-          $stmt->execute([intval($_GET['edit'])]);
-          $edit_order = $stmt->fetch();
-      }
+
+
+include "connection.php"; // make sure $conn is defined (PDO connection)
+
+
+// Variable for search keyword
+$searchKeyword = '';
+if (isset($_GET['search'])) {
+    $searchKeyword = trim($_GET['search']);
+}
+
+// Build query with optional search filter using PDO
+$sqls = "SELECT * FROM tbl_order";
+$params = [];
+
+if (!empty($searchKeyword)) {
+    $sqls .= " WHERE customer_id LIKE :search OR payment_method LIKE :search OR status LIKE :search OR phone LIKE :search";
+    $params[':search'] = "%$searchKeyword%";
+}
+$sqls .= " ORDER BY id DESC";
+
+// Execute query with PDO
+$stmt = $conn->prepare($sqls);
+foreach ($params as $key => $value) {
+    $stmt->bindValue($key, $value);
+}
+$stmt->execute();
+$res = $stmt;
+
+// Get total orders count
+$totalOrders = $res->rowCount();
+
+// Save new order
+if (isset($_POST['save'])) {
+    $customer_id = $_POST['customer_id'];
+    $order_date = $_POST['order_date'];
+    $total_amount = $_POST['total_amount'];
+    $payment_method = $_POST['payment_method'];
+    $status = $_POST['status'];
+    $shipping_address = $_POST['shipping_address'];
+    $phone = $_POST['phone'];
+    $note = $_POST['note'];
+    $created_at = $_POST['created_at']; // Fixed: removed space before $created_at
+
+    // Use prepared statement to prevent SQL injection
+    $sql = "INSERT INTO tbl_order (customer_id, order_date, total_amount, payment_method, status, shipping_address, phone, note, created_at)
+            VALUES (:customer_id, :order_date, :total_amount, :payment_method, :status, :shipping_address, :phone, :note, :created_at)";
+    
+    $insertStmt = $conn->prepare($sql);
+    $insertStmt->bindParam(':customer_id', $customer_id);
+    $insertStmt->bindParam(':order_date', $order_date);
+    $insertStmt->bindParam(':total_amount', $total_amount);
+    $insertStmt->bindParam(':payment_method', $payment_method);
+    $insertStmt->bindParam(':status', $status);
+    $insertStmt->bindParam(':shipping_address', $shipping_address);
+    $insertStmt->bindParam(':phone', $phone);
+    $insertStmt->bindParam(':note', $note);
+    $insertStmt->bindParam(':created_at', $created_at);
+    
+    if ($insertStmt->execute()) {
+        header("Location: order.php");
+        exit();
+    } else {
+        echo "Error: " . implode(", ", $insertStmt->errorInfo());
+    }
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KRaksa Coffee Shop | Order Management</title>
-       <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <title>Manage Orders | Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         * {
@@ -113,807 +83,526 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
         body {
-            font-family: 'Inter', sans-serif;
-            background: #fef9f0;
+            background: #f4f7fc;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            overflow-x: hidden;
         }
-        
-        /* Sidebar */
-         /* Coffee-themed Sidebar */
+        /* SIDEBAR STYLES */
         .bar {
-            background: linear-gradient(145deg, #3e2723 0%, #2c1a12 100%);
-            box-shadow: 6px 0 18px rgba(0, 0, 0, 0.1);
-            z-index: 1050;
+            background-color: #00A296;
         }
-
-<<<<<<< HEAD
-<!-- Latest compiled JavaScript -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-<style>
-    body{
-        overflow-x: hidden;
-    }
-    .bar{
-        /* background-image: linear-gradient(95deg, #4f772d,#90a955); */
-        background-color: #00A296;
-    }
-    .men{
-        padding: 0;
-        margin: 0;
-        width: 100%; 
-    }
-    .menu li{
-        background-color:transparent;
-        border:none;
-        width: 100%;  
-        transition: 0.3s linear;
-        font-size:1.2rem;
-        list-style-type: none;
-        padding: 5px 10px;
-    }
-    .menu li a{
-    display: flex;              
-    align-items: center;
-    gap: 10px;                  
-    width: 100%;
-    padding: 10px 15px;
-    color: #e8e8e4;
-    text-decoration: none;
-    transition: 0.2s ease;
-    border-radius: 6px;
-    }
-    .menu li:hover a {
-    transform: translateX(15px);
-}
-    .menu li:hover {
-        background-color:rgba(0,0,0,0.2);
-        width: 100%;
-        transform: translateX(11px);
-    }
-    img{
-        width: 100px;
-        position: relative;
-        left: 50%;
-        bottom: 45px;
-        transform: translateX(-50%);
-        border-radius: 50%;
-    }
-    .logo{
-        display:flex;
-        width: 100%;
-        position: relative;
-        top:20px
-    }
-    .text-head{
-        position: absolute;
-        bottom:45px;
-        left: 40px;   
-        color:#e8e8e4;
-        font-size:18px;
-    }
-    .text-dashoard{
-        color:#3E5C14;
-    }
-    .logout{
-        position: absolute;
-        left:50px;
-        font-size:1.2rem;
-        bottom: 30px;
-        cursor: pointer;
-    }
-    .revenue-top,.revenue-center{
-    position: relative;
-    color:#fff;
-    }
-    .revenue-top i,.revenue-center i{
-        position: absolute;
-        top: 5px;
-        left: 0;
-    }
-    .revenue-top p{
-        position: relative;
-        left:20px;
-    }
-    .revenue-center h5{
-        position: relative;
-        position: relative;
-        left:20px;
-    }
-    .tea,.coffee{
-        display:flex;
-
-    }
-</style>
-</head>
-<body>
-    <div class="contaner">
-        <div class="row">
-            <div class="col-2 position-fixed vh-100  bar">
-                <div class="logo py-5">
-                    <img src="https://i.pinimg.com/736x/e5/2a/e3/e52ae301a1162863df9a68c532dd3e2e.jpg" alt="">
-                    <h1 class=" text-head"> Admine Dashboard </h1>
-                </div>
-                <ul class="menu list-group">
-                    <li class="li-list"><a class=" " href="index.php"><i class="fa-solid fa-house"></i>Main Dashboard</a></li>
-                    <li class="li-list"><a class=" " href="product.php"><i class="fa-solid fa-box"></i> Menage Menu</a></li>
-                    <li class="li-list"><a class=" " href="order.php"> <i class="fa-solid fa-cart-shopping"></i> Oders</a></li>
-                    <li class="li-list"><a class=" " href="customer.php"><i class="fa-solid fa-users"></i> Customer</a></li>
-                    <li class="li-list"><a class=" " href="customer.php"><i class="fa-solid fa-chart-area"></i> Analytics</a></li>
-                    <li class="li-list"><a class=" " href="index.php"><i class="fa-solid fa-list"></i> Report</a></li>
-                    <li class="li-list"><a class=" " href="index.php"><i class="fa-solid fa-gear"></i> setting</a></li>
-                </ul>
-                <div class="logout text-white">
-                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
-                    logout
-                </div>
-            </div>
-            <div class="col-10 position-relative offset-2 p-3">
-                <div class="hader-dashoard">
-                    <h4 class="text-dashoard">Order List</h4>
-                </div>
-                
-                
-        
-            <?php
-                $sqls = "SELECT * FROM tbl_order";
-                $res = $cn->query($sqls);
-            ?>
-=======
-        .bar .logo {
+        .menu li {
+            background-color: transparent;
+            border: none;
+            width: 100%;
+            transition: 0.3s linear;
+            font-size: 1.2rem;
+            list-style-type: none;
+            padding: 5px 10px;
+        }
+        .menu li a {
             display: flex;
             align-items: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 1rem 0 0.8rem 0;
+            gap: 10px;
+            width: 100%;
+            padding: 10px 15px;
+            color: #e8e8e4;
+            text-decoration: none;
+            transition: 0.2s ease;
+        }
+        .menu li:hover a {
+            transform: translateX(15px);
+        }
+        .menu li:hover {
+            background-color: rgba(0,0,0,0.2);
+            width: 100%;
+            transform: translateX(11px);
+        }
+        .logo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            padding-top: 1.5rem;
+        }
+        .img {
+            width: 90px;
+            height: 90px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 3px solid #f1f8e9;
+            box-shadow: 0 5px 12px rgba(0,0,0,0.2);
             margin-bottom: 0.5rem;
         }
-
-        .bar img {
-            width: 48px;
-            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.2));
-            margin-left: 10px;
-        }
         .text-head {
-            color: #f5e6d3;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-            margin-left: 6px;
-            font-size: 1.2rem;
+            color: #FFF3E0;
+            font-size: 1.3rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-top: 0.5rem;
+            text-align: center;
         }
-
-        .text-head small {
-            font-size: 0.7rem;
-            display: block;
-            color: #d4a373;
-        }
-
-        .menu li {
-            background: transparent;
-            border: none;
-            margin: 6px 0;
-            border-radius: 14px;
-            transition: all 0.2s ease;
-        }
-
-        .menu li a {
-            text-decoration: none;
-            color: #e8dcca;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            font-size: 1rem;
-            transition: 0.2s;
-        }
-
-        .menu li a i {
-            width: 24px;
-            font-size: 1.2rem;
-        }
-
-        .menu li:hover {
-            background: rgba(212, 163, 115, 0.3);
-            transform: translateX(4px);
-        }
-
-        .menu li:hover a {
-            color: #ffd966;
-        }
-
         .logout {
             position: absolute;
-            bottom: 28px;
-            left: 24px;
+            bottom: 30px;
+            left: 25px;
             font-weight: 500;
-            color: #d4a373;
             cursor: pointer;
+            color: #FFE0B5;
+            transition: 0.2s;
             display: flex;
             align-items: center;
             gap: 12px;
-            transition: 0.2s;
-            padding: 10px 16px;
-            border-radius: 40px;
-            width: calc(100% - 48px);
         }
-
         .logout:hover {
-            background: #c0392b;
             color: white;
+            transform: translateX(5px);
         }
-
-        .main-content {
-            margin-left: 16.666%;
-            padding: 28px 32px;
-            transition: all 0.2s;
-        }
-
-        .page-title h2 {
-            font-weight: 800;
-            color: #5d3a1a;
-            letter-spacing: -0.3px;
-        }
-
-        
-        .logo small {
-            color: #d4a373;
-            font-size: 0.7rem;
-            display: block;
-        }
-        
-        .nav-menu {
-            list-style: none;
-            padding: 20px 0;
-        }
-        
-        .nav-menu li a {
-            display: block;
-            padding: 12px 24px;
-            color: #e8dcca;
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.3s;
-        }
-        
-        .nav-menu li a:hover {
-            background: rgba(212,163,115,0.3);
-            color: #ffd966;
-        }
-        
-        .nav-menu li a.active {
-            background: rgba(212,163,115,0.4);
-            color: #ffd966;
-            border-left: 3px solid #ffd966;
-        }
-        
-        .nav-menu li a i {
-            width: 28px;
-            margin-right: 10px;
-        }
-        
-        /* Main Content */
-        .main-content {
-            margin-left: 260px;
-            padding: 30px 40px;
-        }
-        
-        /* Cards */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .stat-card {
-            background: white;
-            border-radius: 20px;
-            padding: 20px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-            border-left: 5px solid #d4a373;
-        }
-        
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 800;
-            color: #5d3a1a;
-        }
-        
-        .stat-label {
-            color: #8b6946;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            margin-top: 5px;
-        }
-        
-        /* Table */
-        .card {
-            background: white;
-            border-radius: 20px;
-            padding: 25px;
-            margin-bottom: 30px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-        }
-        
-        .card-header {
+        /* MAIN CONTENT */
+        .hader-dashoard {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            background: white;
+            padding: 1rem 1.8rem;
+            border-radius: 28px;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.02);
+            margin-bottom: 25px;
             flex-wrap: wrap;
             gap: 15px;
         }
-        
-        .card-header h3 {
-            color: #5d3a1a;
-            font-size: 1.3rem;
+        .text-dashoard {
+            color: #1E3A3A;
+            font-weight: 700;
+            font-size: 1.8rem;
+            letter-spacing: -0.3px;
         }
-        
-        .filter-bar {
+        .btn-outline-success.add {
+            background: #00897B;
+            color: white;
+            border: none;
+            padding: 8px 24px;
+            border-radius: 40px;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+        .btn-outline-success.add:hover {
+            background: #00695C;
+            transform: translateY(-2px);
+        }
+        /* SEARCH BAR + COUNTER */
+        .search-section {
+            background: white;
+            border-radius: 60px;
+            padding: 0.3rem 0.3rem 0.3rem 1.2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+            border: 1px solid #e2e8f0;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .search-section input {
+            border: none;
+            outline: none;
+            padding: 8px 12px;
+            width: 240px;
+            font-size: 0.9rem;
+            background: transparent;
+        }
+        .search-section button {
+            background: #00897B;
+            border: none;
+            border-radius: 50px;
+            padding: 6px 20px;
+            color: white;
+            font-weight: 500;
+            transition: 0.2s;
+        }
+        .search-section button:hover {
+            background: #00695C;
+        }
+        .product-counter {
+            background: #eef2f5;
+            padding: 8px 18px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #1f5e56;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .product-counter i {
+            font-size: 1rem;
+            color: #00897B;
+        }
+        .stats-wrapper {
             display: flex;
-            gap: 10px;
+            align-items: center;
+            gap: 18px;
             flex-wrap: wrap;
         }
-        
-        .filter-bar input, .filter-bar select {
-            padding: 8px 15px;
-            border: 1px solid #e0cfbc;
-            border-radius: 40px;
-            font-family: 'Inter', sans-serif;
+        /* TABLE STYLES */
+        .table-container {
+            background: white;
+            border-radius: 28px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.05);
+            overflow: hidden;
+            border: 1px solid #e9ecef;
         }
-        
-        .btn {
-            padding: 8px 20px;
-            border: none;
-            border-radius: 40px;
-            cursor: pointer;
-            font-weight: 600;
-            font-family: 'Inter', sans-serif;
-            transition: all 0.3s;
-        }
-        
-        .btn-primary {
-            background: #d4a373;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background: #b5835a;
-            transform: scale(0.98);
-        }
-        
-        .btn-danger {
-            background: #e74c3c;
-            color: white;
-        }
-        
-        .btn-danger:hover {
-            background: #c0392b;
-        }
-        
-        .btn-warning {
-            background: #f39c12;
-            color: white;
-        }
-        
-        table {
+        .custom-table {
             width: 100%;
-            border-collapse: collapse;
+            margin-bottom: 0;
+            border-collapse: separate;
+            border-spacing: 0;
         }
-        
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #f0e4d4;
+        .custom-table thead th {
+            font-weight: 700;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #2c3e46;
+            padding: 1rem 0.8rem;
+            border-bottom: 2px solid #e2e8f0;
+            background-color: #fefefe;
+            position: sticky;
+            top: 0;
+            z-index: 2;
         }
-        
-        th {
-            background: #faf5eb;
-            color: #5d3a1a;
-            font-weight: 600;
+        .custom-table tbody tr:hover {
+            background: #f9fefc;
         }
-        
-        .badge {
+        .custom-table td {
+            padding: 1rem 0.8rem;
+            vertical-align: middle;
+            font-size: 0.9rem;
+            color: #1f2e38;
+        }
+        .status-paid {
+            background: #E0F2E9;
+            color: #2C6E49;
             padding: 5px 12px;
             border-radius: 40px;
+            font-weight: 500;
+            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-unpaid {
+            background: #FFF3E0;
+            color: #E67E22;
+            padding: 5px 12px;
+            border-radius: 40px;
+            font-weight: 500;
+            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-cancel {
+            background: #FEE2E2;
+            color: #DC2626;
+            padding: 5px 12px;
+            border-radius: 40px;
+            font-weight: 500;
+            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .price-tag {
+            font-weight: 700;
+            color: #E67E22;
+            font-size: 1rem;
+        }
+        .btn-edit {
+            background: #F4A261;
+            border: none;
+            color: white;
+            padding: 5px 14px;
+            border-radius: 30px;
             font-size: 0.75rem;
             font-weight: 600;
+            transition: 0.2s;
+            margin-right: 8px;
+            text-decoration: none;
             display: inline-block;
         }
-        
-        .badge-completed { background: #d4edda; color: #155724; }
-        .badge-pending { background: #fff3cd; color: #856404; }
-        .badge-processing { background: #d1ecf1; color: #0c5460; }
-        .badge-cancelled { background: #f8d7da; color: #721c24; }
-        
-        .status-select {
-            padding: 5px 10px;
-            border-radius: 40px;
-            border: 1px solid #d4a373;
-            background: white;
-            cursor: pointer;
+        .btn-edit:hover {
+            background: #E76F51;
+            color: white;
         }
-        
-        .action-buttons {
-            display: flex;
-            gap: 8px;
-        }
-        
-        .btn-sm {
-            padding: 5px 12px;
+        .btn-delete {
+            background: #FFF2F0;
+            color: #D9534F;
+            border: 1px solid #FFD9D4;
+            padding: 5px 14px;
+            border-radius: 30px;
             font-size: 0.75rem;
-        }
-        
-        .pagination {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            margin-top: 20px;
-        }
-        
-        .pagination a {
-            padding: 8px 14px;
-            background: #f0e4d4;
+            font-weight: 600;
             text-decoration: none;
-            color: #5d3a1a;
-            border-radius: 40px;
-            transition: 0.3s;
+            transition: 0.2s;
+            display: inline-block;
         }
-        
-        .pagination a.active {
-            background: #d4a373;
-            color: white;
+        .btn-delete:hover {
+            background: #ffe3e0;
+            color: #c9302c;
         }
-        
-        .pagination a:hover {
-            background: #d4a373;
-            color: white;
-        }
-        
-        .alert {
-            padding: 15px 20px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-        }
-        
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .modal {
+        /* FORM CARD */
+        .form {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 500px;
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 25px 45px rgba(0,0,0,0.25);
+            z-index: 1050;
+            padding: 1.8rem;
             display: none;
+            border: 1px solid rgba(0,128,117,0.2);
+        }
+        .overlay {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
+            background: rgba(0,0,0,0.55);
+            backdrop-filter: blur(4px);
+            z-index: 1040;
+            display: none;
         }
-        
-        .modal.show {
-            display: flex;
+        .form-control, .form-select {
+            border-radius: 16px;
+            border: 1px solid #e0dfd5;
+            padding: 0.6rem 1rem;
         }
-        
-        .modal-content {
-            background: white;
-            border-radius: 24px;
-            padding: 30px;
-            width: 500px;
-            max-width: 90%;
+        .btn-primary {
+            background: #00897B;
+            border: none;
+            border-radius: 40px;
+            padding: 8px 20px;
+            font-weight: 600;
         }
-        
-        .modal-header {
-            margin-bottom: 20px;
+        .btn-primary:hover {
+            background: #00695C;
         }
-        
-        .modal-body input, .modal-body select {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #e0cfbc;
-            border-radius: 12px;
+        .btn-secondary {
+            border-radius: 40px;
+            background: #f1f3f4;
+            color: #2c3e46;
+            border: none;
         }
-        
-        .modal-footer {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-            margin-top: 20px;
+        .checkbox-custom {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #00897B;
         }
-        
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 100%;
-                position: relative;
-                height: auto;
-            }
-            .main-content {
-                margin-left: 0;
-                padding: 20px;
-            }
+        .table-responsive-custom {
+            overflow-x: auto;
+        }
+        @media (max-width: 992px) {
+            .form { width: 90%; }
+            .search-section input { width: 160px; }
+        }
+        .clear-search {
+            background: transparent;
+            border: none;
+            color: #6c757d;
+            transition: 0.2s;
+            text-decoration: none;
+            padding: 0 8px;
+        }
+        .clear-search:hover {
+            color: #dc3545;
+        }
+        .action-icons a {
+            text-decoration: none;
         }
     </style>
 </head>
 <body>
->>>>>>> 108987377118d6ca7d8af37bb4b2b9eeebe47265
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-2 bar vh-100 position-fixed">
+            <div class="logo">
+                <img class="img" src="https://i.pinimg.com/736x/e5/2a/e3/e52ae301a1162863df9a68c532dd3e2e.jpg" alt="admin">
+                <h1 class="text-head"> Admin Dashboard </h1>
+            </div>
+            <ul class="menu list-group">
+                <li><a href="index.php"><i class="fa-solid fa-house"></i>Main Dashboard</a></li>
+                <li><a href="product.php"><i class="fa-solid fa-box"></i> Manage Menu</a></li>
+                <li><a href="#"><i class="fa-solid fa-cart-shopping"></i> Orders</a></li>
+                <li><a href="customer.php"><i class="fa-solid fa-users"></i> Customer</a></li>
+                <li><a href="analytics.php"><i class="fa-solid fa-chart-area"></i> Analytics</a></li>
+                <li><a href="reprot.php"><i class="fa-solid fa-list"></i> Report</a></li>
+                <li><a href="settings.php"><i class="fa-solid fa-gear"></i> Setting</a></li>
+            </ul>
+            <div class="logout text-white">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i> logout
+            </div>
+        </div>
 
+        <!-- Main content -->
+        <div class="col-10 offset-2 p-3 px-5">
+            <div class="hader-dashoard">
+                <h2 class="text-dashoard"><i class="fa-solid fa-cart-shopping me-2"></i>Order List</h2>
+                <div class="stats-wrapper">
+                    <!-- Order Counter Card -->
+                    <div class="product-counter">
+                        <i class="fa-solid fa-boxes-stacked"></i>
+                        <span>Total Orders: <strong><?= $totalOrders ?></strong></span>
+                    </div>
+                    <!-- Search Form -->
+                    <form method="GET" action="order.php" class="search-section">
+                        <i class="fa-solid fa-magnifying-glass text-secondary"></i>
+                        <input type="text" name="search" placeholder="Search by ID, payment, status, phone..." value="<?= htmlspecialchars($searchKeyword) ?>">
+                        <button type="submit"><i class="fa-solid fa-search"></i> Search</button>
+                        <?php if (!empty($searchKeyword)): ?>
+                            <a href="order.php" class="clear-search" title="Clear search"><i class="fa-solid fa-times-circle"></i></a>
+                        <?php endif; ?>
+                    </form>
+                    <button type="button" class="btn btn-outline-success add"><i class="fa-solid fa-plus me-1"></i> Add New Order</button>
+                </div>
+            </div>
 
-<div class="col-2 position-fixed vh-100 p-3 bar" style="top:0; left:0;">
-        <div class="logo">
-            <img src="https://cdn-icons-png.flaticon.com/512/924/924514.png" alt="coffee icon">
-            <h4 class="text-head">shop Coffee<br><small>Smart Analytics</small></h4>
-        </div>
-        <ul class="list-group menu mx-1 my-4">
-            <li class="list-group-item​ "><a href="index.php"><i class="fa-solid fa-chart-line"></i> Dashboard</a></li>
-            <li class="list-group-item active"><a href=""><i class="fa-solid fa-cart-shopping"></i> Orders</a></li>
-            <li class="list-group-item"><a href="#"><i class="fa-solid fa-mug-hot"></i> Products</a></li>
-            <li class="list-group-item"><a href="#"><i class="fa-solid fa-users"></i> Customers</a></li>
-            <li class="list-group-item"><a href="#"><i class="fa-solid fa-file-invoice"></i> Reports</a></li>
-        </ul>
-        <div class="logout">
-            <i class="fa-solid fa-arrow-right-from-bracket"></i>
-            Logout
-        </div>
-    </div>
+            <!-- Add Order Form (Popup) -->
+            <div class="card form mx-auto shadow p-4" id="productFormCard" style="display: none;">               
+                <form method="POST">
+                    <h4 class="mb-3"><i class="fa-solid fa-cart-plus"></i> New Order</h4>
+                    <input type="number" name="customer_id" class="form-control mb-2" placeholder="Customer ID" required>
+                    <input type="date" name="order_date" class="form-control mb-2" value="<?= date('Y-m-d') ?>" required>
+                    <input type="number" step="0.01" name="total_amount" class="form-control mb-2" placeholder="Total Amount ($)" required>
+                    <select name="payment_method" class="form-select mb-2" required>
+                        <option value="">Select Payment Method</option>
+                        <option value="Cash">Cash</option>
+                        <option value="Credit Card">Credit Card</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="ABA Pay">ABA Pay</option>
+                    </select>
+                    <select name="status" class="form-select mb-2" required>
+                        <option value="paid">Paid</option>
+                        <option value="unpaid">Unpaid</option>
+                        <option value="cancel">Cancel</option>
+                    </select>
+                    <input type="text" name="shipping_address" class="form-control mb-2" placeholder="Shipping Address" required>
+                    <input type="tel" name="phone" class="form-control mb-2" placeholder="Phone Number" required>
+                    <textarea name="note" class="form-control mb-2" placeholder="Note (optional)" rows="2"></textarea>
+                    <input type="datetime-local" name="created_at" class="form-control mb-2" value="<?= date('Y-m-d\TH:i') ?>" required>
+                   
+                    <div class="d-flex justify-content-end gap-2 mt-3">
+                        <button type="button" class="btn btn-secondary cancel">Cancel</button>
+                        <button class="btn btn-primary" name="save">Save Order</button>
+                    </div>
+                </form>
+            </div>
+            <div class="overlay" id="overlayBg"></div>
 
-<div class="main-content">
-    <!-- Message Alert -->
-    <?php if(isset($_GET['msg'])): ?>
-        <?php 
-        $msg_type = 'success';
-        $msg_text = '';
-        switch($_GET['msg']) {
-            case 'created': $msg_text = '✅ Order created successfully!'; break;
-            case 'updated': $msg_text = '✅ Order updated successfully!'; break;
-            case 'deleted': $msg_text = '🗑️ Order deleted successfully!'; break;
-            case 'status_updated': $msg_text = '✅ Status updated!'; break;
-        }
-        if($msg_text): ?>
-        <div class="alert alert-success"><?php echo $msg_text; ?></div>
-        <script>setTimeout(() => document.querySelector('.alert')?.remove(), 3000);</script>
-        <?php endif; ?>
-    <?php endif; ?>
-    
-    <!-- Statistics -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-value"><?php echo $total_orders; ?></div>
-            <div class="stat-label"><i class="fas fa-receipt"></i> Total Orders</div>
+            <!-- Order Table -->
+            <div class="table-container mt-4">
+                <div class="table-responsive-custom">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th  id="selectAllCheck"></th>
+                                <th>ID</th>
+                                <th>Customer ID</th>
+                                <th>Order Date</th>
+                                <th>Total Amount</th>
+                                <th>Payment Method</th>
+                                <th>Status</th>
+                                <th>Shipping Address</th>
+                                <th>Phone</th>
+                                <th>Note</th>
+                                <th>Created At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if ($totalOrders > 0): ?>
+                                <?php while ($row = $res->fetch(PDO::FETCH_ASSOC)): ?>
+                                <tr class="align-middle">
+                                    <td><input type="checkbox" class="product-checkbox checkbox-custom" value="<?= $row['id'] ?>"></td>
+                                    <td class="fw-semibold"><?= htmlspecialchars($row['id']) ?></td>
+                                    <td class="fw-semibold"><?= htmlspecialchars($row['customer_id']) ?></td>
+                                    <td><?= htmlspecialchars($row['order_date']) ?></td>
+                                    <td class="price-tag">$<?= number_format($row['total_amount'], 2) ?></td>
+                                    <td><?= htmlspecialchars($row['payment_method']) ?></td>
+                                    <td>
+                                        <?php if (strtolower($row['status']) == "paid"): ?>
+                                            <span class="status-paid"><i class="fa-solid fa-circle-check"></i> Paid</span>
+                                        <?php elseif (strtolower($row['status']) == "unpaid"): ?>
+                                            <span class="status-unpaid"><i class="fa-regular fa-clock"></i> Unpaid</span>
+                                        <?php else: ?>
+                                            <span class="status-cancel"><i class="fa-solid fa-ban"></i> Cancel</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?= htmlspecialchars($row['shipping_address']) ?></td>
+                                    <td><?= htmlspecialchars($row['phone']) ?></td>
+                                    <td><?= htmlspecialchars($row['note']) ?></td>
+                                    <td><?= htmlspecialchars($row['created_at']) ?></td>
+                                    <td class="action-icons">
+                                        <a href="edit_order.php?id=<?= $row['id'] ?>" class="btn-edit mb-2"><i class="fa-regular fa-pen-to-square"></i> Edit</a>
+                                        <a href="delete_order.php?id=<?= $row['id'] ?>" class="btn-delete" onclick="return confirm('Delete this order?')"><i class="fa-regular fa-trash-can"></i> Delete</a>
+                                    </td>
+                                </tr>
+                                <?php endwhile; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="12" class="text-center py-5 text-muted">
+                                        <i class="fa-solid fa-cart-shopping fa-2x mb-2 d-block"></i> No orders found. 
+                                        <?php if (!empty($searchKeyword)): ?> Try a different keyword or <a href="order.php">clear search</a>.<?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-        <div class="stat-card">
-            <div class="stat-value">$<?php echo number_format($total_revenue, 2); ?></div>
-            <div class="stat-label"><i class="fas fa-dollar-sign"></i> Total Revenue</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value"><?php echo $pending_count; ?></div>
-            <div class="stat-label"><i class="fas fa-clock"></i> Pending / Processing</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value"><?php echo $completed_count; ?></div>
-            <div class="stat-label"><i class="fas fa-check-circle"></i> Completed</div>
-        </div>
-    </div>
-    
-    <!-- Orders Table -->
-    <div class="card">
-        <div class="card-header">
-            <h3><i class="fas fa-list-ul"></i> All Orders</h3>
-            <button class="btn btn-primary" onclick="openModal('create')">
-                <i class="fas fa-plus"></i> Add New Order
-            </button>
-        </div>
-        
-        <!-- Filter Bar -->
-        <div class="filter-bar">
-            <form method="GET" action="" style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <select name="status" onchange="this.form.submit()">
-                    <option value="all" <?php echo $status_filter == 'all' ? 'selected' : ''; ?>>All Status</option>
-                    <option value="pending" <?php echo $status_filter == 'pending' ? 'selected' : ''; ?>>Pending</option>
-                    <option value="processing" <?php echo $status_filter == 'processing' ? 'selected' : ''; ?>>Processing</option>
-                    <option value="completed" <?php echo $status_filter == 'completed' ? 'selected' : ''; ?>>Completed</option>
-                    <option value="cancelled" <?php echo $status_filter == 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
-                </select>
-                <input type="text" name="search" placeholder="🔍 Search by customer or item..." value="<?php echo htmlspecialchars($search); ?>">
-                <button type="submit" class="btn btn-primary btn-sm">Search</button>
-                <a href="index.php" class="btn btn-sm" style="background:#f0e4d4;">Reset</a>
-            </form>
-        </div>
-        
-        <div style="overflow-x: auto; margin-top: 20px;">
-            <table>
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Customer Name</th>
-                        <th>Item</th>
-                        <th>Total ($)</th>
-                        <th>Order Date</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if(count($paginated_orders) > 0): ?>
-                        <?php foreach($paginated_orders as $order): ?>
-                        <tr>
-                            <td>#<?php echo $order['id']; ?></td>
-                            <td><i class="fas fa-user-circle"></i> <?php echo htmlspecialchars($order['c_name']); ?></td>
-                            <td><?php echo htmlspecialchars($order['item'] ?: '-'); ?></td>
-                            <td>$<?php echo number_format($order['total_amount'], 2); ?></td>
-                            <td><?php echo date('d/m/Y H:i', strtotime($order['order_date'])); ?></td>
-                            <td>
-                                <form method="GET" action="" style="display: inline;">
-                                    <input type="hidden" name="update_status" value="1">
-                                    <input type="hidden" name="id" value="<?php echo $order['id']; ?>">
-                                    <select name="status" onchange="this.form.submit()" class="status-select">
-                                        <option value="pending" <?php echo $order['status'] == 'pending' ? 'selected' : ''; ?>>Pending</option>
-                                        <option value="processing" <?php echo $order['status'] == 'processing' ? 'selected' : ''; ?>>Processing</option>
-                                        <option value="completed" <?php echo $order['status'] == 'completed' ? 'selected' : ''; ?>>Completed</option>
-                                        <option value="cancelled" <?php echo $order['status'] == 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
-                                    </select>
-                                </form>
-                            </td>
-                            <td class="action-buttons">
-                                <a href="?edit=<?php echo $order['id']; ?>" class="btn btn-warning btn-sm">
-                                    <i class="fas fa-edit"></i> Edit
-                                </a>
-                                <button onclick="confirmDelete(<?php echo $order['id']; ?>)" class="btn btn-danger btn-sm">
-                                    <i class="fas fa-trash"></i> Delete
-                                </button>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="7" style="text-align: center; padding: 40px;">
-                                <i class="fas fa-inbox"></i> No orders found
-                            </td>
-                        </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-        
-        <!-- Pagination -->
-        <?php if($total_pages > 1): ?>
-        <div class="pagination">
-            <?php for($i = 1; $i <= $total_pages; $i++): ?>
-                <a href="?page=<?php echo $i; ?>&status=<?php echo $status_filter; ?>&search=<?php echo urlencode($search); ?>" 
-                   class="<?php echo $i == $page ? 'active' : ''; ?>">
-                    <?php echo $i; ?>
-                </a>
-            <?php endfor; ?>
-        </div>
-        <?php endif; ?>
-    </div>
-    
-    <!-- Simple Statistics Table -->
-    <div class="card">
-        <h3 style="margin-bottom: 20px;"><i class="fas fa-chart-simple"></i> Quick Statistics</h3>
-        <table>
-            <thead><tr><th>Status</th><th>Count</th><th>Total Revenue</th></tr></thead>
-            <tbody>
-                <?php
-                $statuses = ['pending', 'processing', 'completed', 'cancelled'];
-                foreach($statuses as $stat):
-                    $stmt = $pdo->prepare("SELECT COUNT(*) as count, COALESCE(SUM(total_amount), 0) as revenue FROM tbl_order WHERE status = ?");
-                    $stmt->execute([$stat]);
-                    $data = $stmt->fetch();
-                ?>
-                <tr>
-                    <td><span class="badge badge-<?php echo $stat; ?>"><?php echo ucfirst($stat); ?></span></td>
-                    <td><?php echo $data['count']; ?> orders</td>
-                    <td>$<?php echo number_format($data['revenue'], 2); ?></td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
     </div>
 </div>
 
-<!-- Create Modal -->
-<div id="createModal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3><i class="fas fa-plus-circle"></i> Add New Order</h3>
-            <button onclick="closeModal('createModal')" style="background:none; border:none; font-size:24px; cursor:pointer;">&times;</button>
-        </div>
-        <form method="POST" action="">
-            <input type="hidden" name="action" value="create">
-            <div class="modal-body">
-                <input type="text" name="c_name" placeholder="Customer Name *" required>
-                <input type="text" name="item" placeholder="Item / Product">
-                <input type="number" step="0.01" name="total_amount" placeholder="Total Amount ($)">
-                <select name="status">
-                    <option value="pending">Pending</option>
-                    <option value="processing">Processing</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
-                </select>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn" onclick="closeModal('createModal')">Cancel</button>
-                <button type="submit" class="btn btn-primary">Create Order</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- Edit Modal -->
-<?php if($edit_order): ?>
-<div id="editModal" class="modal show">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3><i class="fas fa-edit"></i> Edit Order #<?php echo $edit_order['id']; ?></h3>
-            <a href="index.php" style="background:none; border:none; font-size:24px; text-decoration:none; color:black;">&times;</a>
-        </div>
-        <form method="POST" action="">
-            <input type="hidden" name="action" value="edit">
-            <input type="hidden" name="id" value="<?php echo $edit_order['id']; ?>">
-            <div class="modal-body">
-                <input type="text" name="c_name" value="<?php echo htmlspecialchars($edit_order['c_name']); ?>" placeholder="Customer Name" required>
-                <input type="text" name="item" value="<?php echo htmlspecialchars($edit_order['item']); ?>" placeholder="Item">
-                <input type="number" step="0.01" name="total_amount" value="<?php echo $edit_order['total_amount']; ?>" placeholder="Total Amount">
-                <select name="status">
-                    <option value="pending" <?php echo $edit_order['status'] == 'pending' ? 'selected' : ''; ?>>Pending</option>
-                    <option value="processing" <?php echo $edit_order['status'] == 'processing' ? 'selected' : ''; ?>>Processing</option>
-                    <option value="completed" <?php echo $edit_order['status'] == 'completed' ? 'selected' : ''; ?>>Completed</option>
-                    <option value="cancelled" <?php echo $edit_order['status'] == 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
-                </select>
-            </div>
-            <div class="modal-footer">
-                <a href="index.php" class="btn">Cancel</a>
-                <button type="submit" class="btn btn-primary">Save Changes</button>
-            </div>
-        </form>
-    </div>
-</div>
-<?php endif; ?>
-
-<!-- Delete Confirmation Form (hidden) -->
-<form id="deleteForm" method="POST" action="" style="display: none;">
-    <input type="hidden" name="action" value="delete">
-    <input type="hidden" name="id" id="deleteId">
-</form>
-
+<!-- JS for popup and select all -->
 <script>
-// Simple JavaScript only for modal and delete confirmation
-function openModal(type) {
-    if(type === 'create') {
-        document.getElementById('createModal').style.display = 'flex';
+    const btnAdd = document.querySelector(".add");
+    const formCard = document.getElementById("productFormCard");
+    const overlayDiv = document.getElementById("overlayBg");
+    const cancelBtn = document.querySelector(".cancel");
+
+    function showForm() {
+        formCard.style.display = "block";
+        overlayDiv.style.display = "block";
+        document.body.style.overflow = "hidden";
     }
-}
-
-function closeModal(modalId) {
-    document.getElementById(modalId).style.display = 'none';
-}
-
-function confirmDelete(id) {
-    if(confirm('⚠️ Are you sure you want to delete this order? This action cannot be undone!')) {
-        document.getElementById('deleteId').value = id;
-        document.getElementById('deleteForm').submit();
+    function hideForm() {
+        formCard.style.display = "none";
+        overlayDiv.style.display = "none";
+        document.body.style.overflow = "auto";
     }
-}
+    
+    if (btnAdd) btnAdd.addEventListener("click", showForm);
+    if (cancelBtn) cancelBtn.addEventListener("click", hideForm);
+    if (overlayDiv) overlayDiv.addEventListener("click", hideForm);
 
-// Close modal when clicking outside
-window.onclick = function(event) {
-    if(event.target.classList.contains('modal')) {
-        event.target.style.display = 'none';
+    // Select all checkboxes functionality
+    const selectAllCheck = document.getElementById("selectAllCheck");
+    if (selectAllCheck) {
+        selectAllCheck.addEventListener("change", function() {
+            const checkboxes = document.querySelectorAll(".product-checkbox");
+            checkboxes.forEach(cb => cb.checked = selectAllCheck.checked);
+        });
     }
-}
-
-// Auto hide alert after 3 seconds
-setTimeout(function() {
-    var alert = document.querySelector('.alert');
-    if(alert) alert.style.display = 'none';
-}, 3000);
+    
+    // Additional cancel inside form
+    const cancelInside = document.querySelector(".form .cancel");
+    if(cancelInside) cancelInside.addEventListener("click", hideForm);
 </script>
-
 </body>
 </html>

@@ -3,7 +3,7 @@ $servername = "localhost";
 $username = "root";
 $password = "";
 $database = "shop1";
-$port = "3308"; // Port របស់អ្នកគឺ 3308
+$port = "3307"; 
 
 try {
     // បង្កើតការភ្ជាប់តាមបែប PDO
@@ -20,4 +20,6 @@ try {
 } catch (PDOException $e) {
     die("ការភ្ជាប់ Database បរាជ័យ: " . $e->getMessage());
 }
+// Session
+session_start();
 ?>

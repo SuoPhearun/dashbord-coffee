@@ -456,12 +456,12 @@ if (isset($_POST['save'])) {
             </div>
             <ul class="menu list-group">
                 <li><a href="index.php"><i class="fa-solid fa-house"></i>Main Dashboard</a></li>
-                <li><a href="product.php"><i class="fa-solid fa-box"></i> Manage Menu</a></li>
+                <li><a href="#"><i class="fa-solid fa-box"></i> Manage Menu</a></li>
                 <li><a href="order.php"><i class="fa-solid fa-cart-shopping"></i> Orders</a></li>
                 <li><a href="customer.php"><i class="fa-solid fa-users"></i> Customer</a></li>
-                <li><a href="#"><i class="fa-solid fa-chart-area"></i> Analytics</a></li>
-                <li><a href="#"><i class="fa-solid fa-list"></i> Report</a></li>
-                <li><a href="#"><i class="fa-solid fa-gear"></i> Setting</a></li>
+                <li><a href="analytics.php"><i class="fa-solid fa-chart-area"></i> Analytics</a></li>
+                <li><a href="reprot.php"><i class="fa-solid fa-list"></i> Report</a></li>
+                <li><a href="settings.php"><i class="fa-solid fa-gear"></i> Setting</a></li>
             </ul>
             <div class="logout text-white">
                 <i class="fa-solid fa-arrow-right-from-bracket"></i> logout

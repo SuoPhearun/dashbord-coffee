@@ -1,42 +1,53 @@
 <?php
 include "connection.php";
 
-if(isset($_POST['login'])){
-
+if(isset($_POST['signup'])){
+    $name = $_POST['name'];
     $email = $_POST['email'];
     $password = $_POST['password'];
-
-    // Use PDO prepared statement (safe from SQL injection)
-    $sql = $conn->prepare("SELECT * FROM tbl_login WHERE email = :email");
-    $sql->execute([':email' => $email]);
+    $confirm_password = $_POST['confirm_password'];
     
-    if($sql->rowCount() > 0){
-        $row = $sql->fetch(PDO::FETCH_ASSOC);
-        
-        if(password_verify($password, $row['password'])){
-            $_SESSION['id'] = $row['id'];
-            $_SESSION['name'] = $row['name'];
-            
-            echo "
-            <script>
-                sessionStorage.setItem('login','true');
-                window.location='index.php';
-            </script>
-            ";
-        } else {
-            echo "<script>alert('Password Incorrect')</script>";
-        }
+    // ពិនិត្យមើលថាពាក្យសម្ងាត់ផ្គូផ្គងគ្នាឬទេ
+    if($password !== $confirm_password){
+        echo "<script>alert('ពាក្យសម្ងាត់មិនត្រូវគ្នា!');</script>";
     } else {
-        echo "<script>alert('Email Not Found')</script>";
+        // ពិនិត្យមើលថាអ៊ីមែលមានរួចហើយឬនៅ
+        $check_email = $conn->prepare("SELECT email FROM tbl_login WHERE email = :email");
+        $check_email->execute([':email' => $email]);
+        
+        if($check_email->rowCount() > 0){
+            echo "<script>alert('អ៊ីមែលនេះមានរួចហើយ! សូមប្រើអ៊ីមែលផ្សេង។');</script>";
+        } else {
+            // Hash ពាក្យសម្ងាត់មុនរក្សាទុក
+            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+            
+            // បញ្ចូលទិន្នន័យថ្មី
+            $sql = $conn->prepare("INSERT INTO tbl_login (name, email, password) VALUES (:name, :email, :password)");
+            $result = $sql->execute([
+                ':name' => $name,
+                ':email' => $email,
+                ':password' => $hashed_password
+            ]);
+            
+            if($result){
+                echo "<script>
+                    alert('បង្កើតគណនីដោយជោគជ័យ! សូមចូលប្រើប្រាស់។');
+                    window.location='login.php';
+                </script>";
+            } else {
+                echo "<script>alert('មានបញ្ហាក្នុងការបង្កើតគណនី។ សូមព្យាយាមម្តងទៀត។');</script>";
+            }
+        }
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="km">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login | Coffee Shop Admin</title>
+    <title>Sign Up | Coffee Shop Admin</title>
     <style>
         :root {
             --primary-color: #00A296;
@@ -76,7 +87,6 @@ if(isset($_POST['login'])){
         .b2 { bottom: -150px; right: -150px; animation-delay: -2s; width: 500px; height: 500px; }
         .b3 { bottom: 10%; left: 10%; animation-delay: -4s; width: 300px; height: 300px; }
         .b4 { top: 5%; right: 15%; animation-delay: -1s; width: 250px; height: 250px; }
-        .b5 { bottom: -200px; left: 40%; animation-delay: -5s; width: 600px; height: 600px; opacity: 0.5; }
 
         @keyframes myAnimation {
             from {
@@ -90,32 +100,32 @@ if(isset($_POST['login'])){
             }
         }
 
-        .login-container {
+        .signup-container {
             position: relative; 
             z-index: 10;
-            padding: 3rem;
+            padding: 2.5rem;
             border-radius: 24px; 
             background: rgba(255, 255, 255, 0.4);
             backdrop-filter: blur(20px);
             border: 1px solid rgba(255, 255, 255, 0.6);
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
             width: 90%;
-            max-width: 400px;
+            max-width: 450px;
         }
 
-        .login-header h2, .login-header p {
+        .signup-header h2, .signup-header p {
             color: var(--primary-color);
             font-weight: 700;
             margin-bottom: 5px;
             text-align:center;
         }
         
-        .login-header h2 {
+        .signup-header h2 {
             font-size: 28px;
             margin-bottom: 10px;
         }
         
-        .login-header p {
+        .signup-header p {
             font-size: 14px;
             opacity: 0.8;
         }
@@ -133,7 +143,7 @@ if(isset($_POST['login'])){
             margin-left: 5px;
         }
 
-        input[type="email"], input[type="password"] {
+        input[type="text"], input[type="email"], input[type="password"] {
             width: 100%;
             padding: 14px 16px;
             background: rgba(255, 255, 255, 0.8);
@@ -171,19 +181,28 @@ if(isset($_POST['login'])){
             box-shadow: 0 10px 20px rgba(0, 162, 150, 0.3);
         }
         
-        .login-footer {
+        .login-link {
             text-align: center;
             margin-top: 20px;
-            font-size: 12px;
-            color: #666;
+            font-size: 14px;
+        }
+        
+        .login-link a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: bold;
+        }
+        
+        .login-link a:hover {
+            text-decoration: underline;
         }
         
         @media (max-width: 480px) {
-            .login-container {
-                padding: 2rem;
+            .signup-container {
+                padding: 1.5rem;
                 margin: 20px;
             }
-            .login-header h2 {
+            .signup-header h2 {
                 font-size: 24px;
             }
         }
@@ -194,28 +213,35 @@ if(isset($_POST['login'])){
 <div class="boll b2"></div>
 <div class="boll b3"></div>
 <div class="boll b4"></div>
-<div class="boll b5"></div>
 
-<div class="login-container">
-    <div class="login-header">
-        <h2>☕ ចូលប្រើប្រាស់ប្រព័ន្ធ</h2>
-        <p>គ្រប់គ្រងហាងកាហ្វេ</p>
+<div class="signup-container">
+    <div class="signup-header">
+        <h2>☕ បង្កើតគណនី</h2>
+        <p>ចុះឈ្មោះដើម្បីគ្រប់គ្រងហាងកាហ្វេ</p>
     </div>
 
     <form action="" method="POST">
         <div class="form-group">
-            <label>📧 Email</label>
+            <label>👤 ឈ្មោះពេញ</label>
+            <input type="text" name="name" required placeholder="បញ្ចូលឈ្មោះរបស់អ្នក">
+        </div>
+        <div class="form-group">
+            <label>📧 អ៊ីមែល</label>
             <input type="email" name="email" required placeholder="បញ្ចូលអ៊ីមែលរបស់អ្នក">
         </div>
         <div class="form-group">
             <label>🔒 ពាក្យសម្ងាត់</label>
             <input type="password" name="password" required placeholder="បញ្ចូលពាក្យសម្ងាត់">
         </div>
-        <button type="submit" name="login">ចូលប្រើប្រាស់</button>
+        <div class="form-group">
+            <label>🔒 បញ្ជាក់ពាក្យសម្ងាត់</label>
+            <input type="password" name="confirm_password" required placeholder="បញ្ចូលពាក្យសម្ងាត់ម្តងទៀត">
+        </div>
+        <button type="submit" name="signup">ចុះឈ្មោះ</button>
     </form>
-     <p>Create Account ? <a href=" signup.php">Register</a></p>
-    <div class="login-footer">
-        <p>© 2024 Coffee Shop Management System</p>
+    
+    <div class="login-link">
+        <p>មានគណនីរួចហើយ? <a href="login.php">ចូលប្រើប្រាស់</a></p>
     </div>
 </div>
 
